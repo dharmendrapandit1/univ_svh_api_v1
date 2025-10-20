@@ -26,12 +26,22 @@ const allowedOrigins = [
   process.env.CLIENT_URL, // Production frontend
 ].filter(Boolean) // Remove undefined
 
+// Normalize origins by removing trailing slashes
+const normalizedOrigins = allowedOrigins.map((origin) =>
+  origin.endsWith('/') ? origin.slice(0, -1) : origin
+)
+
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true) // allow Postman, server-to-server
-    if (allowedOrigins.includes(origin)) {
+
+    // Normalize the incoming origin by removing trailing slash
+    const normalizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin
+
+    if (normalizedOrigins.includes(normalizedOrigin)) {
       callback(null, true)
     } else {
+      console.log(`CORS blocked: ${origin} (normalized: ${normalizedOrigin})`)
       callback(new Error(`CORS policy: Origin ${origin} not allowed`))
     }
   },
@@ -52,7 +62,6 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
-app.use(cookieParser())
 
 // -------------------- BODY PARSING --------------------
 // JSON parsing for all routes except webhook
