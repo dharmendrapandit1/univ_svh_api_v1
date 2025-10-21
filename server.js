@@ -1,10 +1,15 @@
 import dotenv from 'dotenv'
 dotenv.config()
+
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 
-// Route imports
+// -------------------- DATABASE & CRON --------------------
+import connectDB from './config/database.js'
+import { startCronJobs } from './services/cronJobs.js'
+
+// -------------------- ROUTE IMPORTS --------------------
 import userRoutes from './routes/users.js'
 import courseRoutes from './routes/courses.js'
 import paymentRoutes from './routes/payments.js'
@@ -15,37 +20,37 @@ import wishlistRoutes from './routes/wishlist.js'
 import contactRoutes from './routes/contact.js'
 import uploadRoutes from './routes/upload.js'
 
-import { startCronJobs } from './services/cronJobs.js'
-import connectDB from './config/database.js'
-
 const app = express()
 
-// -------------------- CORS CONFIGURATION --------------------
-const allowedOrigins = [
-  'http://localhost:3000', // Local development
-  process.env.CLIENT_URL, // Production frontend
-].filter(Boolean) // Remove undefined
+// -------------------- ✅ COOKIE PARSER --------------------
+app.use(cookieParser())
 
-// Normalize origins by removing trailing slashes
+// -------------------- ✅ CORS CONFIGURATION --------------------
+const allowedOrigins = [
+  'http://localhost:5173', // Vite local dev
+  'http://localhost:3000', // Optional fallback
+  process.env.CLIENT_URL, // Production (e.g. https://univsvh.in)
+].filter(Boolean)
+
+// Normalize to prevent trailing slash mismatch
 const normalizedOrigins = allowedOrigins.map((origin) =>
   origin.endsWith('/') ? origin.slice(0, -1) : origin
 )
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true) // allow Postman, server-to-server
+    if (!origin) return callback(null, true) // Allow Postman / server-side
 
-    // Normalize the incoming origin by removing trailing slash
     const normalizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin
 
     if (normalizedOrigins.includes(normalizedOrigin)) {
       callback(null, true)
     } else {
-      console.log(`CORS blocked: ${origin} (normalized: ${normalizedOrigin})`)
+      console.log(`🚫 CORS blocked: ${origin}`)
       callback(new Error(`CORS policy: Origin ${origin} not allowed`))
     }
   },
-  credentials: true,
+  credentials: true, // ✅ allows sending cookies from frontend
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
     'Content-Type',
@@ -55,36 +60,36 @@ const corsOptions = {
     'Origin',
     'Access-Control-Request-Method',
     'Access-Control-Request-Headers',
+    'guestid', // ✅ allow guest headers too
   ],
   exposedHeaders: ['Set-Cookie', 'Date', 'ETag'],
-  preflightContinue: false,
   optionsSuccessStatus: 204,
 }
 
 app.use(cors(corsOptions))
 
-// -------------------- BODY PARSING --------------------
-// JSON parsing for all routes except webhook
+// -------------------- ✅ BODY PARSING --------------------
 app.use((req, res, next) => {
   if (req.originalUrl === '/api/payments/webhook') return next()
   express.json({ limit: '10mb' })(req, res, next)
 })
 app.use(express.urlencoded({ extended: true }))
 
-// -------------------- ROUTES --------------------
+// -------------------- ✅ HEALTH CHECK --------------------
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Server is running',
+    message: 'Server is running ✅',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     cors: {
-      origin: allowedOrigins,
+      allowedOrigins,
       credentials: true,
     },
   })
 })
 
+// -------------------- ✅ ROUTES --------------------
 app.use('/api/users', userRoutes)
 app.use('/api/courses', courseRoutes)
 app.use('/api/payments', paymentRoutes)
@@ -95,12 +100,11 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/contact', contactRoutes)
 
-// Root route
+// -------------------- ROOT & 404 --------------------
 app.get('/', (req, res) => {
-  res.send('Welcome to univ SVH api_v1')
+  res.send('🌐 Welcome to Univ SVH API v1')
 })
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -108,29 +112,9 @@ app.use((req, res) => {
   })
 })
 
-// -------------------- SERVER INITIALIZATION --------------------
-const startServer = async () => {
-  try {
-    await connectDB()
-    startCronJobs()
-    const PORT = process.env.PORT || 5000
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`)
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
-      console.log(`CORS allowed for: ${allowedOrigins.join(', ')}`)
-      console.log(`Health check: http://localhost:${PORT}/api/health`)
-    })
-  } catch (error) {
-    console.error('Server startup failed:', error)
-    process.exit(1)
-  }
-}
-
-startServer()
-
-// -------------------- ERROR HANDLING --------------------
+// -------------------- ✅ GLOBAL ERROR HANDLER --------------------
 app.use((err, req, res, next) => {
-  console.error(err)
+  console.error('🔥 Error:', err)
   res.status(500).json({
     success: false,
     message: 'Something went wrong!',
@@ -138,6 +122,27 @@ app.use((err, req, res, next) => {
   })
 })
 
+// -------------------- ✅ START SERVER --------------------
+const startServer = async () => {
+  try {
+    await connectDB()
+    startCronJobs()
+    const PORT = process.env.PORT || 5000
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`)
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`)
+      console.log(`✅ CORS allowed for: ${allowedOrigins.join(', ')}`)
+      console.log(`💓 Health check: http://localhost:${PORT}/api/health`)
+    })
+  } catch (error) {
+    console.error('❌ Server startup failed:', error)
+    process.exit(1)
+  }
+}
+
+startServer()
+
+// -------------------- ✅ CLEAN EXIT --------------------
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err)
   process.exit(1)

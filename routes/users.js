@@ -19,6 +19,18 @@ router.post('/register', registerUser)
 router.post('/register/admin', registerAdmin)
 router.post('/register/counselor', registerCounselor)
 router.post('/guest', createGuestUser)
+router.get('/verify-token', authenticate, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user,
+    isAuthenticated: true,
+  })
+})
+
+router.post('/logout', authenticate, (req, res) => {
+  res.clearCookie('token')
+  res.json({ success: true, message: 'Logged out successfully' })
+})
 
 // Protected routes
 router.get('/profile', authenticate, getProfile)

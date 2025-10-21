@@ -225,12 +225,6 @@ export const registerUser = async (req, res) => {
       role = 'user',
     } = req.body
 
-    console.log('👤 User registration attempt:', {
-      email,
-      role,
-      subscriptionType,
-    })
-
     const existingUser = await User.findOne({ email })
     if (existingUser) {
       return res.status(400).json({
