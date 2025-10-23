@@ -4,6 +4,8 @@ import dotenv from 'dotenv'
 dotenv.config()
 import User from '../models/User.js'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
 // Unified login for all roles
 export const login = async (req, res) => {
   try {
@@ -52,7 +54,7 @@ export const login = async (req, res) => {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Changed from 'strict' for better compatibility
+      sameSite: isProduction ? 'none' : 'lax', // Changed from 'strict' for better compatibility
     }
 
     res.cookie('token', token, cookieOptions)
@@ -114,7 +116,7 @@ export const registerAdmin = async (req, res) => {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
     }
 
     res.cookie('token', token, cookieOptions)
@@ -191,7 +193,7 @@ export const registerCounselor = async (req, res) => {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
     }
 
     res.cookie('token', token, cookieOptions)
@@ -254,7 +256,7 @@ export const registerUser = async (req, res) => {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
     }
 
     res.cookie('token', token, cookieOptions)
@@ -308,7 +310,7 @@ export const createGuestUser = async (req, res) => {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
     }
 
     res.cookie('token', token, cookieOptions)
@@ -340,7 +342,7 @@ export const logout = async (req, res) => {
       expires: new Date(Date.now() + 10 * 1000), // 10 seconds from now
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
     })
 
     res.status(200).json({
