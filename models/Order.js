@@ -16,7 +16,7 @@ const orderSchema = new mongoose.Schema(
       {
         itemType: {
           type: String,
-          enum: ['course', 'note', 'counseling'],
+          enum: ['course', 'note', 'notes', 'counseling'],
           required: true,
         },
         itemId: {
@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema(
           required: true,
         },
         name: String,
-        price: Number,
+        price: Number, // Stored in RUPEES
         quantity: {
           type: Number,
           default: 1,
@@ -32,15 +32,15 @@ const orderSchema = new mongoose.Schema(
       },
     ],
     totalAmount: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       required: true,
     },
     discount: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       default: 0,
     },
     finalAmount: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       required: true,
     },
     status: {
@@ -63,12 +63,22 @@ const orderSchema = new mongoose.Schema(
   }
 )
 
+// Indexes
+orderSchema.index({ user: 1, status: 1 })
+orderSchema.index({ createdAt: -1 })
+orderSchema.index({ orderId: 1 })
+
 // Pre-save hook to generate unique orderId
 orderSchema.pre('save', function (next) {
   if (!this.orderId) {
     this.orderId = `ORD_${Date.now()}_${Math.floor(Math.random() * 1000)}`
   }
   next()
+})
+
+// Virtual for order summary
+orderSchema.virtual('itemCount').get(function () {
+  return this.items.reduce((total, item) => total + item.quantity, 0)
 })
 
 const Order = mongoose.model('Order', orderSchema)

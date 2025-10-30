@@ -192,14 +192,11 @@ userSchema.pre('save', async function (next) {
   next()
 })
 
-// Fix password comparison method
 userSchema.methods.correctPassword = async function (candidatePassword) {
-  // For free users without password, allow login without password check
   if (this.subscriptionType === 'free' && !this.password) {
-    return true
+    return false
   }
 
-  // For users with passwords, verify
   if (this.password) {
     return await compare(candidatePassword, this.password)
   }

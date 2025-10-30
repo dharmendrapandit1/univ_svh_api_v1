@@ -14,23 +14,28 @@ const notesSchema = new mongoose.Schema(
     content: {
       type: String,
     },
-    // ImageKit file URL
     fileUrl: {
       type: String,
       required: true,
     },
     thumbnailUrl: {
-      type: String, // ImageKit URL
+      type: String,
     },
-    previewImages: [String], // ImageKit URLs for sample pages
+    previewImages: [String],
     price: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       required: true,
       min: 0,
     },
     discountedPrice: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       min: 0,
+      validate: {
+        validator: function (value) {
+          return !value || value <= this.price
+        },
+        message: 'Discounted price cannot be higher than original price',
+      },
     },
     category: {
       type: String,
@@ -53,10 +58,10 @@ const notesSchema = new mongoose.Schema(
       default: 1,
     },
     fileSize: {
-      type: String, // e.g., "2.5 MB"
+      type: String,
     },
     fileType: {
-      type: String, // pdf, doc, etc.
+      type: String,
     },
     rating: {
       type: Number,
@@ -81,22 +86,48 @@ const notesSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    previewPages: [String], // URLs of sample pages
+    previewPages: [String],
     relatedCourses: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Course',
       },
     ],
-    // ImageKit metadata
     imageKitFileId: {
-      type: String, // Store ImageKit file ID for future operations
+      type: String,
     },
   },
   {
     timestamps: true,
   }
 )
+
+// Indexes
+notesSchema.index({ category: 1, subject: 1 })
+notesSchema.index({ gradeLevel: 1, isActive: 1 })
+notesSchema.index({ price: 1, discountedPrice: 1 })
+notesSchema.index({ isFeatured: 1, createdAt: -1 })
+notesSchema.index({ author: 1 })
+notesSchema.index({ tags: 1 })
+
+// Virtual for discount percentage
+notesSchema.virtual('discountPercentage').get(function () {
+  if (this.discountedPrice && this.price && this.discountedPrice < this.price) {
+    return Math.round(((this.price - this.discountedPrice) / this.price) * 100)
+  }
+  return 0
+})
+
+// Virtual for effective price
+notesSchema.virtual('effectivePrice').get(function () {
+  return this.discountedPrice || this.price
+})
+
+// Instance method to increment downloads
+notesSchema.methods.incrementDownload = function () {
+  this.downloads += 1
+  return this.save()
+}
 
 const Note = mongoose.model('Note', notesSchema)
 export default Note

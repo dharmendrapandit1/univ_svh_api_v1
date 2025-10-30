@@ -9,7 +9,7 @@ const refundSchema = new mongoose.Schema(
       sparse: true,
     },
     amount: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       required: true,
       min: 1,
     },
@@ -62,15 +62,9 @@ const paymentSchema = new mongoose.Schema(
       type: String,
     },
     amount: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       required: true,
-      min: 1,
-      validate: {
-        validator: function (value) {
-          return value > 0
-        },
-        message: 'Amount must be positive',
-      },
+      min: 1, // Minimum 1 INR
     },
     currency: {
       type: String,
@@ -95,7 +89,7 @@ const paymentSchema = new mongoose.Schema(
       {
         itemType: {
           type: String,
-          enum: ['course', 'note', 'counseling', 'subscription'],
+          enum: ['course', 'note', 'notes', 'counseling', 'subscription'],
           required: true,
         },
         itemId: {
@@ -112,7 +106,7 @@ const paymentSchema = new mongoose.Schema(
           min: 1,
         },
         price: {
-          type: Number,
+          type: Number, // Stored in RUPEES
           required: true,
           min: 0,
         },
@@ -144,7 +138,7 @@ const paymentSchema = new mongoose.Schema(
     },
     refunds: [refundSchema],
     refundedAmount: {
-      type: Number,
+      type: Number, // Stored in RUPEES
       default: 0,
       min: 0,
       validate: {
@@ -181,12 +175,9 @@ const paymentSchema = new mongoose.Schema(
 paymentSchema.index({ createdAt: -1 })
 paymentSchema.index({ user: 1, status: 1 })
 paymentSchema.index({ updatedAt: -1 })
+paymentSchema.index({ 'items.itemType': 1, 'items.itemId': 1 })
 
-// Virtuals
-paymentSchema.virtual('amountInRupees').get(function () {
-  return this.amount / 100
-})
-
+// Virtuals - All amounts are already in rupees
 paymentSchema.virtual('isSuccessful').get(function () {
   return this.status === 'paid'
 })

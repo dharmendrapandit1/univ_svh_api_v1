@@ -30,10 +30,22 @@ export const createOrder = async (req, res) => {
       })
     }
 
-    // Fix currency typo in your request - you have 'IMR' but it should be 'INR'
-    const validCurrency = currency === 'IMR' ? 'INR' : currency
+    // Proper currency validation
+    const validCurrencies = ['INR', 'USD', 'EUR']
+    const validCurrency = currency.toUpperCase()
 
-    // Calculate total amount and validate items
+    if (!validCurrencies.includes(validCurrency)) {
+      await session.abortTransaction()
+      session.endSession()
+      return res.status(400).json({
+        success: false,
+        message: `Unsupported currency: ${currency}. Supported: ${validCurrencies.join(
+          ', '
+        )}`,
+      })
+    }
+
+    // Calculate total amount in RUPEES
     let totalAmount = 0
     const orderItems = []
     const paymentItems = []
@@ -49,7 +61,7 @@ export const createOrder = async (req, res) => {
       }
 
       let itemDetails
-      let price
+      let price // Will be in RUPEES
       let itemName
 
       switch (item.itemType) {
@@ -104,7 +116,8 @@ export const createOrder = async (req, res) => {
           })
       }
 
-      if (price <= 0) {
+      // Enhanced price validation
+      if (!price || price <= 0) {
         await session.abortTransaction()
         session.endSession()
         return res.status(400).json({
@@ -120,7 +133,7 @@ export const createOrder = async (req, res) => {
         itemType: item.itemType,
         itemId: item.itemId,
         name: itemName,
-        price: price,
+        price: price, // RUPEES
         quantity: quantity,
       })
 
@@ -128,12 +141,12 @@ export const createOrder = async (req, res) => {
         itemType: item.itemType,
         itemId: item.itemId,
         name: itemName,
-        price: price,
+        price: price, // RUPEES
         quantity: quantity,
       })
     }
 
-    // Validate total amount
+    // Validate total amount (minimum 1 INR)
     if (totalAmount < 1) {
       await session.abortTransaction()
       session.endSession()
@@ -143,28 +156,28 @@ export const createOrder = async (req, res) => {
       })
     }
 
-    // Generate orderId MANUALLY to ensure it's set before save
+    // Generate orderId
     const generatedOrderId = `ORD_${Date.now()}_${Math.floor(
       Math.random() * 1000
     )}`
 
-    // Create order in database - SET orderId explicitly
+    // Create order in database - all amounts in RUPEES
     const order = new Order({
       user: userId,
-      orderId: generatedOrderId, // Set orderId explicitly
+      orderId: generatedOrderId,
       items: orderItems,
-      totalAmount,
-      finalAmount: totalAmount,
+      totalAmount: totalAmount, // RUPEES
+      finalAmount: totalAmount, // RUPEES
       status: 'pending',
       notes: notes,
     })
 
     await order.save({ session })
 
-    // Create Razorpay order
+    // Create Razorpay order (amount converted to paise internally in createRazorpayOrder)
     const razorpayOrder = await createRazorpayOrder({
-      amount: totalAmount,
-      currency: validCurrency, // Use corrected currency
+      amount: totalAmount, // Pass rupees, gets converted to paise
+      currency: validCurrency,
       receipt: order.orderId,
       notes: {
         orderId: order._id.toString(),
@@ -172,12 +185,12 @@ export const createOrder = async (req, res) => {
       },
     })
 
-    // Create payment record
+    // Create payment record - all amounts in RUPEES
     const payment = new Payment({
       user: userId,
       order: order._id,
       razorpayOrderId: razorpayOrder.id,
-      amount: totalAmount,
+      amount: totalAmount, // RUPEES
       currency: validCurrency,
       items: paymentItems,
       status: 'created',
@@ -198,6 +211,8 @@ export const createOrder = async (req, res) => {
       order: razorpayOrder,
       orderId: order._id,
       paymentId: payment._id,
+      amount: totalAmount, // RUPEES (for frontend display)
+      currency: validCurrency,
     })
   } catch (error) {
     await session.abortTransaction()
@@ -210,6 +225,7 @@ export const createOrder = async (req, res) => {
     })
   }
 }
+
 export const verifyPayment = async (req, res) => {
   const session = await mongoose.startSession()
   session.startTransaction()
@@ -303,6 +319,11 @@ export const verifyPayment = async (req, res) => {
         data: {
           paymentId: payment._id,
           orderId: order._id,
+          // ✅ Include purchased items even for already processed payments
+          purchasedItems: order.items.map((item) => ({
+            itemId: item.itemId,
+            itemType: item.itemType,
+          })),
         },
       })
     }
@@ -331,6 +352,7 @@ export const verifyPayment = async (req, res) => {
     const updatedOrder = await Order.findById(orderId)
       .populate('user', 'name email')
       .populate('payment')
+      .populate('items.itemId')
 
     res.status(200).json({
       success: true,
@@ -339,12 +361,20 @@ export const verifyPayment = async (req, res) => {
         paymentId: payment._id,
         orderId: order._id,
         order: updatedOrder,
+        amount: payment.amount, // RUPEES
+        currency: payment.currency,
+        // ✅ ADD THIS: Return purchased item IDs for immediate UI update
+        purchasedItems: order.items.map((item) => ({
+          itemId: item.itemId,
+          itemType: item.itemType,
+        })),
       },
     })
   } catch (error) {
     await session.abortTransaction()
     session.endSession()
 
+    console.error('Payment verification error:', error)
     res.status(500).json({
       success: false,
       message: 'Payment verification failed. Please contact support.',
@@ -369,6 +399,8 @@ export const handleWebhook = async (req, res) => {
     const event = req.body.event
     const payload = req.body.payload
 
+    console.log(`Processing webhook event: ${event}`)
+
     switch (event) {
       case 'payment.captured':
         await handleSuccessfulPayment(payload.payment.entity)
@@ -383,6 +415,7 @@ export const handleWebhook = async (req, res) => {
         await handleOrderPaid(payload.order.entity)
         break
       default:
+        console.log(`Unhandled webhook event: ${event}`)
     }
   } catch (error) {
     console.error('Webhook processing error:', error)
@@ -426,6 +459,7 @@ const handleSuccessfulPayment = async (paymentEntity) => {
       }
 
       await session.commitTransaction()
+      console.log(`Webhook: Payment ${paymentEntity.id} marked as paid`)
     } else {
       await session.abortTransaction()
     }
@@ -434,7 +468,6 @@ const handleSuccessfulPayment = async (paymentEntity) => {
     await session.abortTransaction()
     session.endSession()
     console.error('Error handling successful payment webhook:', error)
-    throw error
   }
 }
 
@@ -465,11 +498,13 @@ const handleFailedPayment = async (paymentEntity) => {
       }
 
       await session.commitTransaction()
+      console.log(`Webhook: Payment ${paymentEntity.id} marked as failed`)
     }
     session.endSession()
   } catch (error) {
     await session.abortTransaction()
     session.endSession()
+    console.error('Error handling failed payment webhook:', error)
   }
 }
 
@@ -480,18 +515,28 @@ const handleRefund = async (refundEntity) => {
     })
 
     if (payment) {
+      // Convert from paise to rupees for refund amount
+      const refundAmountInRupees = refundEntity.amount / 100
+
       await payment.processRefund({
         razorpayRefundId: refundEntity.id,
-        amount: refundEntity.amount / 100, // Convert from paise to rupees
+        amount: refundAmountInRupees, // RUPEES
         reason: refundEntity.notes?.reason || 'Refund processed',
         notes: refundEntity.notes?.note,
       })
+
+      console.log(
+        `Webhook: Refund processed for payment ${refundEntity.payment_id}, amount: ${refundAmountInRupees} INR`
+      )
     }
-  } catch (error) {}
+  } catch (error) {
+    console.error('Error handling refund webhook:', error)
+  }
 }
 
 const handleOrderPaid = async (orderEntity) => {
   // Handle order.paid event if needed
+  console.log(`Webhook: Order paid event for ${orderEntity.id}`)
 }
 
 const grantUserAccess = async (userId, items, session = null) => {
@@ -520,6 +565,7 @@ const grantUserAccess = async (userId, items, session = null) => {
               },
               updateOptions
             )
+            console.log(`User ${userId} enrolled in course ${item.itemId}`)
           }
           break
 
@@ -539,6 +585,7 @@ const grantUserAccess = async (userId, items, session = null) => {
               { $inc: { downloads: 1 } },
               updateOptions
             )
+            console.log(`User ${userId} purchased note ${item.itemId}`)
           }
           break
 
@@ -548,7 +595,7 @@ const grantUserAccess = async (userId, items, session = null) => {
             {
               paymentStatus: 'paid',
               status: 'confirmed',
-              user: userId, // Link user to counseling session
+              user: userId,
             },
             updateOptions
           )
@@ -560,11 +607,11 @@ const grantUserAccess = async (userId, items, session = null) => {
         `Error granting access for ${item.itemType} ${item.itemId}:`,
         error
       )
-      // Continue with other items even if one fails
     }
   }
 
   await user.save(updateOptions)
+  console.log(`User access granted successfully for user ${userId}`)
 }
 
 // Get payment status
@@ -588,9 +635,17 @@ export const getPaymentStatus = async (req, res) => {
       success: true,
       data: {
         order,
+        amount: order.finalAmount, // RUPEES
+        currency: order.payment?.currency || 'INR',
+        // ✅ Also include purchased items in payment status response
+        purchasedItems: order.items.map((item) => ({
+          itemId: item.itemId,
+          itemType: item.itemType,
+        })),
       },
     })
   } catch (error) {
+    console.error('Get payment status error:', error)
     res.status(500).json({
       success: false,
       message: 'Failed to fetch payment status',
@@ -624,9 +679,44 @@ export const getPaymentHistory = async (req, res) => {
       },
     })
   } catch (error) {
+    console.error('Get payment history error:', error)
     res.status(500).json({
       success: false,
       message: 'Failed to fetch payment history',
+    })
+  }
+}
+
+// Additional utility function to check payment status from Razorpay
+export const checkRazorpayPaymentStatus = async (req, res) => {
+  try {
+    const { razorpayOrderId } = req.params
+
+    if (!razorpayOrderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Razorpay order ID is required',
+      })
+    }
+
+    const order = await razorpay.orders.fetch(razorpayOrderId)
+
+    res.status(200).json({
+      success: true,
+      data: {
+        razorpayOrderId: order.id,
+        status: order.status,
+        amount: order.amount / 100, // Convert paise to rupees
+        currency: order.currency,
+        createdAt: new Date(order.created_at * 1000),
+      },
+    })
+  } catch (error) {
+    console.error('Check Razorpay payment status error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check payment status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     })
   }
 }

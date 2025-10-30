@@ -5,6 +5,7 @@ import {
   handleWebhook,
   getPaymentStatus,
   getPaymentHistory,
+  checkRazorpayPaymentStatus, // Add this import
 } from '../controllers/paymentController.js'
 import { authenticate } from '../middleware/auth.js'
 import {
@@ -25,6 +26,11 @@ router
 
 router.route('/status/:orderId').get(authenticate, getPaymentStatus)
 
+// Add the new Razorpay status check route
+router
+  .route('/razorpay-status/:razorpayOrderId')
+  .get(authenticate, checkRazorpayPaymentStatus)
+
 router.route('/history').get(authenticate, getPaymentHistory)
 
 // Webhook route - no authentication, raw body required
@@ -32,7 +38,7 @@ router
   .route('/webhook')
   .post(express.raw({ type: 'application/json' }), handleWebhook)
 
-// Optional: Add a route to get payment by ID
+// Optional: Add a route to get payment by ID (implement if needed)
 router.route('/:paymentId').get(authenticate, async (req, res) => {
   // You can implement this if needed
   res.status(501).json({
