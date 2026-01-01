@@ -1,7 +1,8 @@
 // models/User.js
 import mongoose from 'mongoose'
 import { hash, compare } from 'bcryptjs'
-import jwt from 'jsonwebtoken' // Add this import
+import jwt from 'jsonwebtoken'
+import crypto from 'crypto' // Added crypto
 
 const userSchema = new mongoose.Schema(
   {
@@ -32,6 +33,7 @@ const userSchema = new mongoose.Schema(
           this.role === 'counselor'
         )
       },
+      select: false, // Don't return password by default
     },
     role: {
       type: String,
@@ -162,6 +164,8 @@ const userSchema = new mongoose.Schema(
         },
       ],
     },
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
   },
   {
     timestamps: true,
@@ -202,6 +206,23 @@ userSchema.methods.correctPassword = async function (candidatePassword) {
   }
 
   return false
+}
+
+// Generate and hash password reset token
+userSchema.methods.getResetPasswordToken = function () {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex')
+
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex')
+
+  // Set expire (10 minutes)
+  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000
+
+  return resetToken
 }
 
 // Guest ID generation

@@ -5,6 +5,8 @@ import {
   registerUser,
   registerAdmin,
   registerCounselor,
+  forgotPassword,
+  resetPassword,
   getProfile,
   updateProfile,
   createGuestUser,
@@ -19,6 +21,8 @@ router.post('/register', registerUser)
 router.post('/register/admin', registerAdmin)
 router.post('/register/counselor', registerCounselor)
 router.post('/guest', createGuestUser)
+router.post('/forgot-password', forgotPassword)
+router.put('/reset-password/:resettoken', resetPassword)
 router.get('/verify-token', authenticate, (req, res) => {
   res.json({
     success: true,

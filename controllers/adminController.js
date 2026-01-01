@@ -17,6 +17,7 @@ export const getDashboardStats = async (req, res) => {
       recentOrders,
       popularCourses,
       pendingCounseling,
+      trendingNotes,
     ] = await Promise.all([
       User.countDocuments(),
       Course.countDocuments(),
@@ -32,6 +33,7 @@ export const getDashboardStats = async (req, res) => {
         .populate('user', 'name email'),
       Course.find().sort({ studentsEnrolled: -1 }).limit(5),
       Counseling.countDocuments({ status: 'pending' }),
+      Note.find().sort({ downloads: -1 }).limit(5),
     ])
 
     // Monthly revenue data for current year
@@ -89,6 +91,7 @@ export const getDashboardStats = async (req, res) => {
         },
         recentOrders,
         popularCourses,
+        trendingNotes,
         monthlyRevenue,
       },
     })

@@ -86,6 +86,10 @@ const notesSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isTrending: {
+      type: Boolean,
+      default: false,
+    },
     previewPages: [String],
     relatedCourses: [
       {
@@ -96,6 +100,33 @@ const notesSchema = new mongoose.Schema(
     imageKitFileId: {
       type: String,
     },
+    reviews: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        name: {
+          type: String,
+          required: true,
+        },
+        rating: {
+          type: Number,
+          required: true,
+          min: 1,
+          max: 5,
+        },
+        comment: {
+          type: String,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

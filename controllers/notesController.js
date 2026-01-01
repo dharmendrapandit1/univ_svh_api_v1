@@ -65,7 +65,7 @@ export const getNotes = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 12,
+      limit = 50,
       category,
       subject,
       gradeLevel,
@@ -201,5 +201,82 @@ export const downloadNote = async (req, res) => {
       success: false,
       message: error.message,
     })
+  }
+}
+
+// @desc    Create new review
+// @route   POST /api/notes/:id/reviews
+// @access  Private
+export const createNoteReview = async (req, res) => {
+  const { rating, comment } = req.body
+
+  const note = await Note.findById(req.params.id)
+
+  if (note) {
+    const alreadyReviewed = note.reviews.find(
+      (r) => r.user.toString() === req.user._id.toString()
+    )
+
+    if (alreadyReviewed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Note already reviewed',
+      })
+    }
+
+    const review = {
+      name: req.user.name,
+      rating: Number(rating),
+      comment,
+      user: req.user._id,
+    }
+
+    note.reviews.push(review)
+
+    note.totalRatings = note.reviews.length
+
+    note.rating =
+      note.reviews.reduce((acc, item) => item.rating + acc, 0) /
+      note.reviews.length
+
+    await note.save()
+    res.status(201).json({ success: true, message: 'Review added' })
+  } else {
+    res.status(404).json({ success: false, message: 'Note not found' })
+  }
+}
+
+// @desc    Delete review
+// @route   DELETE /api/notes/:id/reviews
+// @access  Private
+export const deleteNoteReview = async (req, res) => {
+  const note = await Note.findById(req.params.id)
+
+  if (note) {
+    const reviewIndex = note.reviews.findIndex(
+      (r) => r.user.toString() === req.user._id.toString()
+    )
+
+    if (reviewIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found',
+      })
+    }
+
+    note.reviews.splice(reviewIndex, 1)
+
+    note.totalRatings = note.reviews.length
+
+    note.rating =
+      note.reviews.length > 0
+        ? note.reviews.reduce((acc, item) => item.rating + acc, 0) /
+          note.reviews.length
+        : 0
+
+    await note.save()
+    res.status(200).json({ success: true, message: 'Review deleted' })
+  } else {
+    res.status(404).json({ success: false, message: 'Note not found' })
   }
 }

@@ -74,7 +74,12 @@ const counselingSchema = new mongoose.Schema(
     // Payment information
     fee: {
       type: Number,
-      default: 0,
+      default: 249, // Default fee
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'refunded'],
+      default: 'pending',
     },
     payment: {
       type: mongoose.Schema.Types.ObjectId,

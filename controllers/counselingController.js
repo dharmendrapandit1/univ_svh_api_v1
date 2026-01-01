@@ -6,6 +6,8 @@ export const createCounselingRequest = async (req, res) => {
     const counselingData = {
       ...req.body,
       user: req.user._id,
+      paymentStatus: 'pending',
+      fee: 249, // Ensure fee is set
     }
 
     const counseling = new Counseling(counselingData)
@@ -72,7 +74,7 @@ export const getCounselingSessions = async (req, res) => {
 
 export const updateCounselingSession = async (req, res) => {
   try {
-    const { assignedCounselor, status, scheduledAt, meetingLink, notes, fee } =
+    const { assignedCounselor, status, scheduledAt, meetingLink, notes, fee, paymentStatus } =
       req.body
 
     const updateData = {}
@@ -82,6 +84,7 @@ export const updateCounselingSession = async (req, res) => {
     if (meetingLink) updateData.meetingLink = meetingLink
     if (notes) updateData.notes = notes
     if (fee !== undefined) updateData.fee = fee
+    if (paymentStatus) updateData.paymentStatus = paymentStatus
 
     const counseling = await Counseling.findByIdAndUpdate(
       req.params.id,

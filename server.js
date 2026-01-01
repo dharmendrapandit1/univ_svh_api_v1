@@ -19,6 +19,9 @@ import adminRoutes from './routes/admin.js'
 import wishlistRoutes from './routes/wishlist.js'
 import contactRoutes from './routes/contact.js'
 import uploadRoutes from './routes/upload.js'
+import quizRoutes from './routes/quiz.js'
+import notificationRoutes from './routes/notifications.js'
+import statsRoutes from './routes/stats.js'
 
 const app = express()
 
@@ -126,6 +129,9 @@ app.use('/api/counseling', counselingRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/contact', contactRoutes)
+app.use('/api/quiz', quizRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/stats', statsRoutes)
 
 // -------------------- ✅ PAYMENT WEBHOOK TEST ENDPOINT --------------------
 // Useful for testing webhooks locally
